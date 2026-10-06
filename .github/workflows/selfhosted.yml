@@ -4,6 +4,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+# Modified for: ares (Redmi K40 Gaming / POCO F3 GT, MTK Dimensity 1200)
+# Target ROM:   LineageOS 22.2
+#
 
 name: Crave Builder(self-hosted)
 on:
@@ -13,11 +16,12 @@ on:
       BASE_PROJECT:
         description: 'Choose a base project:'
         required: true
-        default: 'LineageOS 20.0'
+        default: 'LineageOS 22.2'
         type: choice
         options:
-          - 'LineageOS 20.0'
+          - 'LineageOS 22.2'
           - 'LineageOS 22.1'
+          - 'LineageOS 20.0'
           - 'LineageOS 23.2'
           - 'DerpFest 14.0'
           - 'CipherOS 14'
@@ -35,19 +39,20 @@ on:
       LOCAL_MANIFEST:
         description: "Personal local manifest [repository or raw]:"
         required: true
-        default: 'https://github.com/sounddrill31/local_manifests_oxygen'
+        # TODO: 替换为你自己的 ares local manifest 仓库地址
+        default: 'https://github.com/YOUR_GITHUB_USERNAME/local_manifests_ares'
       LOCAL_MANIFEST_BRANCH:
         description: "Personal local manifest's branch:"
         required: false
-        default: 'lineage-21-qpr3'
+        default: 'ares'
       DEVICE_NAME:
         description: "Device's codename:"
         required: true
-        default: "oxygen"
+        default: "ares"
       PRODUCT_NAME:
         description: "Product to build:"
         required: true
-        default: "oxygen"
+        default: "ares"
       BUILD_COMMAND:
         description: 'Command to be used for compiling:'
         required: true
@@ -90,12 +95,12 @@ jobs:
         if [[ $DCDEVSPACE == *1* ]]; then
         echo 'No need to set up crave, we are already running in devspace!'
         else
-          mkdir ${HOME}/bin/
+          mkdir -p ${HOME}/bin/
           curl -s https://raw.githubusercontent.com/accupara/crave/master/get_crave.sh | bash -s --
           mv ${PWD}/crave ${HOME}/bin/
           sudo ln -sf /home/${USER}/bin/crave /usr/bin/crave
           envsubst < ${PWD}/crave.conf.sample >> ${PWD}/crave.conf
-          rm -rf ${PWD}/crave.conf.sample          
+          rm -rf ${PWD}/crave.conf.sample
         fi
       env:
         CRAVE_USERNAME: ${{  secrets.CRAVE_USERNAME  }}
@@ -103,22 +108,22 @@ jobs:
 
     - name: Run crave devspace
       run: |
-        crave ${{ secrets.CRAVE_FLAGS }} devspace -- "echo "Looking for runner..."
+        crave ${{ secrets.CRAVE_FLAGS }} devspace -- "echo \"Looking for runner...\"
           # Look for whether there's a runner folder set up
           if [ -f actions-runner/run.sh ] ; then
-            echo "Runner found! Restarting it..."
+            echo \"Runner found! Restarting it...\"
           else
-            echo "Error! Runner not found!"
+            echo \"Error! Runner not found!\"
             exit 1
           fi
 
         if tmux has-session -t ghactions; then 
-          echo "Runner is already Running" 
+          echo \"Runner is already Running\" 
         else 
           tmux kill-session -t ghactions;
           tmux new-session -d -s ghactions 
           tmux send-keys -t ghactions './actions-runner/run.sh' Enter 
-          echo "Runner Started"
+          echo \"Runner Started\"
         fi "
   prepare:
     name: Prepare for Building
@@ -139,6 +144,17 @@ jobs:
       id: proj-variables
       run: |
         case "${{ github.event.inputs.BASE_PROJECT }}" in
+        "LineageOS 22.2")
+          # ============================================================
+          # 使用 LineageOS 官方源码仓库
+          # TODO: PROJECTID 需替换为 crave.io 上该项目的真实 ID
+          #   官方 22.2 分支为 lineage-22.2（Android 15 QPR2）
+          # 注：官方 manifest 不含 --git-lfs，官方仅 android.git 仓库即可
+          # ============================================================
+          export PROJECTFOLDER="/crave-devspaces/Lineage22.2"
+          export PROJECTID="93"
+          export REPO_INIT="repo init -u https://github.com/LineageOS/android.git -b lineage-22.2 --git-lfs --depth=1"
+        ;;
         "DerpFest 14.0")
           export PROJECTFOLDER="/crave-devspaces/DerpFest14"
           export PROJECTID="64"
@@ -147,24 +163,26 @@ jobs:
         "LineageOS 20.0")
           export PROJECTFOLDER="/crave-devspaces/Lineage20"
           export PROJECTID="36"
-          export REPO_INIT="repo init -u https://github.com/accupara/los20.git -b lineage-20.0 --git-lfs --depth=1"
+          export REPO_INIT="repo init -u https://github.com/LineageOS/android.git -b lineage-20.0 --git-lfs --depth=1"
         ;;
         "LineageOS 22.1")
           export PROJECTFOLDER="/crave-devspaces/Lineage22"
           export PROJECTID="93"
-          export REPO_INIT="repo init -u https://github.com/accupara/los22.git -b lineage-22.1 --git-lfs --depth=1"
+          export REPO_INIT="repo init -u https://github.com/LineageOS/android.git -b lineage-22.1 --git-lfs --depth=1"
         ;;
         "LineageOS 23.2")
           export PROJECTFOLDER="/crave-devspaces/Lineage23"
           export PROJECTID="99"
-          export REPO_INIT="repo init -u https://github.com/accupara/los23.2.git -b lineage-23.2 --git-lfs --depth=1"
+          export REPO_INIT="repo init -u https://github.com/LineageOS/android.git -b lineage-23.2 --git-lfs --depth=1"
         ;;
         "CipherOS 14")
           export PROJECTFOLDER="/crave-devspaces/Cipher14"
           export PROJECTID="79"
           export REPO_INIT="repo init -u https://github.com/CipherOS/android_manifest.git -b fourteen --git-lfs --depth=1"
         ;;
-        "PixelOS 16")
+        # 注意：原作用域下拉框写的是 "PixelOS 15"，但 case 分支写的是 "PixelOS 16"，
+        # 导致选 15 时匹配不到、REPO_INIT 为空。这里统一为 15 并补齐。
+        "PixelOS 15"|"PixelOS 16")
           export PROJECTFOLDER="/crave-devspaces/Pixel16"
           export PROJECTID="82"
           export REPO_INIT="repo init -u https://github.com/PixelOS-AOSP/manifest.git -b sixteen --git-lfs --depth=1"
@@ -172,27 +190,37 @@ jobs:
         "LineageOS 18.1")
           export PROJECTFOLDER="/crave-devspaces/Lineage18"
           export PROJECTID="85"
-          export REPO_INIT="repo init -u https://github.com/accupara/los18.1.git -b lineage-18.1 --git-lfs --depth=1"
+          export REPO_INIT="repo init -u https://github.com/LineageOS/android.git -b lineage-18.1 --git-lfs --depth=1"
         ;;
         "LineageOS 16.0")
           export PROJECTFOLDER="/crave-devspaces/Lineage16"
           export PROJECTID="81"
-          export REPO_INIT="repo init -u https://github.com/accupara/los16.git -b lineage-16.0 --git-lfs --depth=1"
+          export REPO_INIT="repo init -u https://github.com/LineageOS/android.git -b lineage-16.0 --git-lfs --depth=1"
         ;;
         "CyanogenMOD 12.1")
           export PROJECTFOLDER="/crave-devspaces/Cyanogen12.1"
           export PROJECTID="80"
-          export REPO_INIT="repo init -u https://github.com/accupara/los-cm12.1.git -b cm-12.1 --git-lfs --depth=1"
+          export REPO_INIT="repo init -u https://github.com/LineageOS/android.git -b cm-12.1 --git-lfs --depth=1"
         ;;
         esac
 
-        if [[ ${{ github.event.inputs.PRODUCT_NAME }} == *_* ]] && [[ ${{ github.event.inputs.PRODUCT_NAME }} != gsi_* ]] && [[ ${{ github.event.inputs.PRODUCT_NAME }} != sdk_* ]] && [[ ${{ github.event.inputs.PRODUCT_NAME }} != *_sprout ]] && [[ ${{ github.event.inputs.PRODUCT_NAME }} != Mi439_* ]] && [[ ${{ github.event.inputs.PRODUCT_NAME }} != Mi8937_* ]]; then
+        # ares 的 Lunch 目标（LineageOS 22.2 使用 lineage_ares-bp4a 风格命名）
+        # 若你的设备树使用其它命名（如 full_ares / aosp_ares），改 "LINEAGE_ARES" 一行即可
+        if [[ "${{ github.event.inputs.BASE_PROJECT }}" == "LineageOS 22.2" ]]; then
+          LUNCH="lunch lineage_ares-${{ github.event.inputs.BUILD_TYPE }}"
+        elif [[ ${{ github.event.inputs.PRODUCT_NAME }} == *_* ]] && [[ ${{ github.event.inputs.PRODUCT_NAME }} != gsi_* ]] && [[ ${{ github.event.inputs.PRODUCT_NAME }} != sdk_* ]] && [[ ${{ github.event.inputs.PRODUCT_NAME }} != *_sprout ]] && [[ ${{ github.event.inputs.PRODUCT_NAME }} != Mi439_* ]] && [[ ${{ github.event.inputs.PRODUCT_NAME }} != Mi8937_* ]]; then
           LUNCH="lunch ${{ github.event.inputs.PRODUCT_NAME }}-${{ github.event.inputs.BUILD_TYPE }}"
         elif [[ "${{ github.event.inputs.BASE_PROJECT }}" == "RisingOS 15 Revived" ]] && [[ "${{ github.event.inputs.BUILD_DIFFERENT_ROM }}" == "echo 'Build Starting!'" ]]; then
             LUNCH="riseup ${{ github.event.inputs.PRODUCT_NAME }} ${{ github.event.inputs.BUILD_TYPE }}"
         else
             LUNCH="breakfast ${{ github.event.inputs.PRODUCT_NAME }} ${{ github.event.inputs.BUILD_TYPE }}"
         fi
+
+        # ============================================================
+        # LLVM/Clang：MTK Dimensity 1200 (ares) 内核编译需要它
+        # 若内核树自带 prebuilt clang，可把这段删掉
+        # ============================================================
+        export LLVM=1 2>/dev/null || true
 
           if [[ "${{ github.event.inputs.LOCAL_MANIFEST }}" =~ \.xml(/)?$ ]]; then
             local_manifest_url="${{ github.event.inputs.LOCAL_MANIFEST }}"
